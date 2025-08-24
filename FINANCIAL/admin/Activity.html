@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Activity Log</title>
+  <link rel="icon" type="image/png" href="logo2.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+const API = 'http://localhost:5050';
+function authHeaders(){ const t = localStorage.getItem('token'); return t? {Authorization:'Bearer '+t}:{ }; }
+async function api(path, opts={}) {
+  const res = await fetch(API+path, { ...opts, headers:{ 'Content-Type':'application/json', ...authHeaders(), ...(opts.headers||{}) }});
+  const json = await res.json(); if(!res.ok) throw new Error(json.error||'Request failed'); return json;
+}
+</script>
+
+  <style>
+    :root{
+      --brand:#0f1c49; --brand-600:#0c173c; --brand-100:#e8ecf9;
+      --ink:#000; --muted:#000; --ring:0 0 0 3px rgba(15,28,73,.15);
+      --card-bg: rgba(255,255,255,.95); --card-border: rgba(226,232,240,.9);
+    }
+
+    body{ background:#fff; color:var(--ink); }
+    .bg-soft{
+      background:
+        radial-gradient(70% 70% at 0% 0%, var(--brand-100) 0%, transparent 60%),
+        radial-gradient(60% 60% at 100% 0%, #eef2ff 0%, transparent 55%),
+        linear-gradient(#fff,#fff);
+    }
+
+    /* Header / Navbar */
+    .navbar{ background:var(--brand); color:#fff; }
+    .navbar *{ color:#fff !important; }
+    .nav-input{
+      background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35);
+      padding:.35rem .6rem; border-radius:.6rem; color:#fff !important;
+    }
+    .nav-input::placeholder{ color:#f1f5f9; }
+
+    /* Cards / Buttons / Tabs */
+    .card{ background:var(--card-bg); border-radius:14px; border:1px solid var(--card-border); box-shadow:0 6px 18px rgba(2,6,23,.04) }
+    .btn{ display:inline-flex; align-items:center; gap:.5rem; padding:.55rem .95rem; border-radius:.65rem; font-weight:600; color:#000 }
+    .btn-brand{ background:var(--brand); color:#fff !important } .btn-brand:hover{ background:var(--brand-600) }
+    .btn-soft{ background:#fff; border:1px solid var(--card-border) } .btn-soft:hover{ background:#f8fafc }
+    .tab-pill{ padding:.4rem .8rem; border-radius:9999px; border:1px solid var(--card-border); font-weight:700; font-size:.9rem; color:#000 }
+    .tab-pill.active{ background:var(--brand); color:#fff; border-color:var(--brand) }
+
+    /* Sidebar */
+    .sidebar-transition{ transition:transform .28s ease }
+    .overlay{ display:none } .overlay.active{ display:block; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:40 }
+    .sidebar-item{ display:flex; align-items:center; gap:.6rem; width:100%; padding:.5rem .75rem; border-radius:.6rem; color:#000 }
+    .sidebar-item:hover{ background:#f8fafc }
+    .sidebar-item.active{ background:rgba(15,28,73,.06); color:var(--brand); font-weight:700 }
+
+    /* Table */
+    th,td{ white-space:nowrap; }
+    thead tr{ background:#f8fafc; }
+    tbody tr:hover{ background:#f8fafc; }
+    .empty-state{ border:2px dashed var(--card-border); border-radius:12px; padding:20px; text-align:center; color:#475569; }
+  </style>
+</head>
+<body class="min-h-screen text-[15px] bg-soft">
+
+  <!-- GLOBAL LOADER -->
+  <div id="globalLoader" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/20">
+    <div class="flex flex-col items-center gap-3">
+      <svg class="animate-spin h-10 w-10" viewBox="0 0 24 24" style="color:var(--brand)">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      <p class="text-sm">Loading…</p>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="fixed top-4 right-4 z-[120] hidden"></div>
+
+  <!-- ===== HEADER ===== -->
+  <header class="sticky top-0 z-50 border-b border-[var(--ring)] navbar backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-3">
+      <button id="openSidebar" class="md:hidden p-2 rounded hover:bg-white/10" aria-label="Open menu">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+      </button>
+
+      <!-- Brand -->
+      <a href="dashboard.html" class="flex items-center gap-3">
+        <img src="logo2.png" alt="ATIÉRA" class="h-8 w-auto sm:h-10" draggable="false">
+        <span class="font-extrabold tracking-wide text-lg">ATIERA</span>
+      </a>
+
+      <!-- Search (global) -->
+      <div class="ml-auto flex items-center gap-2">
+        <input id="searchInput" placeholder="Search modules, cards, rows…" class="nav-input text-sm w-72 outline-none"/>
+      </div>
+
+      <!-- Live date/time -->
+      <div id="clockWrap" class="hidden md:flex items-center gap-2 mr-1 select-none">
+        <span id="liveDate" class="text-sm"></span>
+        <button id="liveTime" class="text-sm font-mono px-2 py-0.5 rounded border border-white/30 bg-white/10"
+                title="Click to toggle 12/24-hour time"></button>
+      </div>
+
+      <!-- Profile -->
+      <div class="relative">
+        <button id="profileBtn" class="p-2 rounded hover:bg-white/10 flex items-center gap-2" title="Account">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/15 border border-white/30">👤</span>
+        </button>
+        <div id="profileMenu" class="hidden absolute right-0 mt-2 w-56 bg-black rounded-lg shadow-xl border border-[var(--card-border)] overflow-hidden text-[var(--ink)]">
+          <div class="px-4 py-2 text-xs text-slate-500 border-b border-[var(--card-border)] md:hidden">
+            <span id="liveDateMobile"></span> • <span id="liveTimeMobile" class="font-mono"></span>
+        </div>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">Settings</a>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">Profile</a>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">My Messages</a>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">Lock Screen</a>
+<a href="login.html?logout=1" class="btn">Logout</a></div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- NAVBAR SUB-MODULE TABS -->
+  <div id="contextBar" class="sticky top-14 z-40 border-b border-[var(--ring)] bg-white/80 backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="font-semibold text-slate-800">Activity Log</span>
+      </div>
+      <nav id="contextTabs" class="flex flex-wrap gap-2">
+        <a class="tab-pill active" href="#activity-all">All Activities</a>
+        <a class="tab-pill" href="#activity-login">Login History</a>
+        <a class="tab-pill" href="#activity-transactions">Transactions</a>
+      </nav>
+    </div>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 py-6">
+    <div id="overlay" class="overlay"></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="fixed md:static left-0 top-14 md:top-auto w-64 md:w-full h-[calc(100vh-56px)] md:h-auto bg-white border-r border-[var(--ring)] sidebar-transition -translate-x-full md:translate-x-0 z-50 overflow-y-auto">
+      <nav class="p-3 space-y-1">
+        <div class="text-[11px] uppercase tracking-widest text-slate-500 px-2 pt-2 pb-1">Navigation</div>
+        <a class="sidebar-item" href="dashboard.html"><span>🏠</span><span>Dashboard</span></a>
+
+        <a class="sidebar-item" href="General Ledger.html"><span>📘</span><span>General Ledger</span></a>
+        <a class="sidebar-item" href="Accounts Receivable.html"><span>💳</span><span>Accounts Receivable</span></a>
+        <a class="sidebar-item" href="Collections.html"><span>🧾</span><span>Collections</span></a>
+        <a class="sidebar-item" href="Accounts Payable.html"><span>📄</span><span>Accounts Payable</span></a>
+        <a class="sidebar-item" href="Disbursement.html"><span>💸</span><span>Disbursement</span></a>
+        <a class="sidebar-item" href="Budget Management.html"><span>📊</span><span>Budget Management</span></a>
+        <a class="sidebar-item" href="Reports.html"><span>📑</span><span>Reports</span></a>
+        <a class="sidebar-item active" href="Activity.html"><span>📋</span><span>Activity Log</span></a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="space-y-6">
+      <section id="contentHost" class="space-y-6">
+        <div class="card p-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs uppercase tracking-wide text-[var(--muted)]">ACTIVITY LOG</div>
+              <h2 class="text-xl font-bold">All Activities</h2>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-soft">Export</button>
+              <button class="btn btn-brand">Refresh</button>
+            </div>
+          </div>
+
+          <div class="mt-4 border-t border-[var(--ring)] pt-4">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="text-left px-3 py-2">Date/Time</th>
+                    <th class="text-left px-3 py-2">User</th>
+                    <th class="text-left px-3 py-2">Action</th>
+                    <th class="text-left px-3 py-2">Module</th>
+                    <th class="text-left px-3 py-2">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-t">
+                    <td class="px-3 py-2">2025-08-15 14:30</td>
+                    <td class="px-3 py-2">admin@atiera.com</td>
+                    <td class="px-3 py-2">Login</td>
+                    <td class="px-3 py-2">System</td>
+                    <td class="px-3 py-2">Successful login from 192.168.1.100</td>
+                  </tr>
+                  <tr class="border-t">
+                    <td class="px-3 py-2">2025-08-15 14:25</td>
+                    <td class="px-3 py-2">finance@atiera.com</td>
+                    <td class="px-3 py-2">Create</td>
+                    <td class="px-3 py-2">General Ledger</td>
+                    <td class="px-3 py-2">Journal Entry #0006 created</td>
+                  </tr>
+                  <tr class="border-t">
+                    <td class="px-3 py-2">2025-08-15 14:20</td>
+                    <td class="px-3 py-2">admin@atiera.com</td>
+                    <td class="px-3 py-2">Update</td>
+                    <td class="px-3 py-2">Accounts Receivable</td>
+                    <td class="px-3 py-2">Invoice INV-0001 updated</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    /* ===== Tiny helpers ===== */
+    const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+
+    /* ===== Loader & Toast (optional UX) ===== */
+    const Loader=(()=>{const el=$('#globalLoader');let on=false,t0=0;const MIN=250;
+      function show(){if(on) return; on=true;t0=performance.now();el.classList.remove('hidden');el.classList.add('flex');}
+      function hide(){if(!on) return;const d=Math.max(0,MIN-(performance.now()-t0));setTimeout(()=>{el.classList.add('hidden');el.classList.remove('flex');on=false;},d);}
+      async function wrap(job){show();try{return typeof job==='function'?await job():await job;}finally{hide();}}
+      return{show,hide,wrap};
+    })();
+    const Toast=(msg,ms=1500)=>{const t=$('#toast'); t.innerHTML=`<div class="toast-card bg-white border border-[var(--card-border)] rounded-md px-3 py-2 shadow">${msg}</div>`; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'), ms);};
+
+    /* ===== Sidebar, profile, theme, clock ===== */
+    const overlay=$('#overlay'), sidebar=$('#sidebar');
+    $('#openSidebar')?.addEventListener('click', ()=>{sidebar.classList.remove('-translate-x-full'); overlay.classList.add('active');});
+    overlay?.addEventListener('click', ()=>{sidebar.classList.add('-translate-x-full'); overlay.classList.remove('active');});
+    const pBtn=$('#profileBtn'), pMenu=$('#profileMenu');
+    pBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); pMenu.classList.toggle('hidden');});
+    document.addEventListener('click', (e)=>{ if(pBtn && pMenu && !pBtn.contains(e.target) && !pMenu.contains(e.target)) pMenu.classList.add('hidden'); });
+    $('#darkModeToggle')?.addEventListener('click', ()=>{ document.documentElement.classList.toggle('dark'); document.body.classList.toggle('bg-soft'); });
+    (function clock(){
+      const t=$('#liveTime'), d=$('#liveDate'), tm=$('#liveTimeMobile'), dm=$('#liveDateMobile'); let is24=localStorage.getItem('fmt24')==='1';
+      const fD=n=>new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'2-digit',weekday:'short'}).format(n);
+      const fT=n=>new Intl.DateTimeFormat(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:!is24}).format(n);
+      function tick(){const n=new Date(); if(d) d.textContent=fD(n); if(t) t.textContent=fT(n); if(dm) dm.textContent=fD(n); if(tm) tm.textContent=fT(n);}
+      t?.addEventListener('click',()=>{is24=!is24; localStorage.setItem('fmt24',is24?'1':'0'); tick();});
+      tick(); setInterval(tick,1000); $('#clockWrap')?.classList.remove('hidden');
+    })();
+  </script>
+</body>
+</html>

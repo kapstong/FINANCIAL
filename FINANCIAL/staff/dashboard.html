@@ -1,0 +1,962 @@
+  <!DOCTYPE html>
+  <html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Finance Suite — Staff</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root{
+        --brand:#f97316; --brand-600:#ea580c; --brand-100:#ffedd5;
+        --ink:#0f172a; --muted:#64748b; --ring:#fed7aa;
+        --card:#ffffff; --border:#eef2f7;
+      }
+      body{ background:#fff; }
+      .bg-soft{
+        background:
+          radial-gradient(70% 70% at 0% 0%, var(--brand-100) 0%, transparent 60%),
+          radial-gradient(60% 60% at 100% 0%, #ffe7cc 0%, transparent 55%),
+          linear-gradient(#fff,#fff);
+      }
+      .card{ background:var(--card); border-radius:14px; border:1px solid var(--border); box-shadow:0 6px 18px rgba(2,6,23,.04) }
+      .btn{ display:inline-flex; align-items:center; gap:.5rem; padding:.55rem .95rem; border-radius:.65rem; font-weight:600 }
+      .btn-brand{ background:var(--brand); color:#fff } .btn-brand:hover{ background:var(--brand-600) }
+      .btn-soft{ background:#fff; border:1px solid var(--ring); color:#0f172a } .btn-soft:hover{ background:#fff7ed }
+      .btn-danger{ background:#ef4444; color:white } .btn-danger:hover{ background:#dc2626 }
+      .top-chip{ height:3px; background:var(--brand) }
+      .sidebar-transition{ transition:transform .28s ease }
+      .overlay{ display:none } .overlay.active{ display:block; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:40 }
+
+      /* Modal */
+      .modal{ display:none; position:fixed; inset:0; z-index:60; }
+      .modal.active{ display:flex }
+      .modal-backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.42) }
+      .modal-panel{ position:relative; margin:auto; width:min(680px,92vw); }
+      .modal-sm .modal-panel{ width:min(420px,92vw); }
+      .modal-lg .modal-panel{ width:min(920px,96vw); }
+      .modal-header{ cursor:move; } /* drag handle */
+
+      /* Toast */
+      .toast-card{ background:#fff; border:1px solid var(--ring); border-radius:.75rem; padding:.6rem .9rem; box-shadow:0 10px 30px rgba(0,0,0,.08) }
+
+      /* Nav */
+      .sidebar-item{ display:flex; align-items:center; gap:.6rem; width:100%; padding:.5rem .75rem; border-radius:.6rem; color:#0f172a; }
+      .sidebar-item:hover{ background:#fff7ed }
+      .sidebar-item.active{ background:rgba(249,115,22,.12); color:var(--brand); font-weight:700 }
+      .tab-pill{ padding:.4rem .8rem; border-radius:9999px; border:1px solid var(--ring); font-weight:700; font-size:.9rem }
+      .tab-pill.active{ background:var(--brand); color:white; border-color:var(--brand) }
+
+      /* Badges */
+      .badge{ display:inline-flex; align-items:center; gap:.35rem; padding:.15rem .5rem; border-radius:9999px; font-size:.75rem; font-weight:700; border:1px solid var(--ring)}
+      .badge.gray{ background:#f8fafc; color:#334155 }
+      .badge.yellow{ background:#fff7ed; color:#9a3412 }
+      .badge.green{ background:#ecfdf5; color:#065f46 }
+      .badge.red{ background:#fef2f2; color:#991b1b }
+
+      /* Inputs */
+      .ipt{ width:100%; margin-top:.25rem; border:1px solid var(--border); border-radius:.5rem; padding:.5rem .65rem }
+      .err{ color:#b91c1c; font-size:.8rem }
+    </style>
+  </head>
+  <body class="min-h-screen text-[15px] text-[var(--ink)] bg-soft">
+
+    <!-- GLOBAL LOADER -->
+    <div id="globalLoader" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/20">
+      <div class="flex flex-col items-center gap-3">
+        <svg class="animate-spin h-10 w-10 text-orange-500" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        <p class="text-sm text-slate-700">Loading…</p>
+      </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed top-4 right-4 z-[120] hidden"></div>
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-50 border-b border-[var(--ring)] bg-white/70 backdrop-blur">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-3">
+        <button id="openSidebar" class="md:hidden p-2 rounded hover:bg-orange-100" aria-label="Open menu">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+        </button>
+
+        <!-- Brand -->
+        <a href="#Dashboard" class="flex items-center gap-3">
+          <img src="logo2.png" alt="ATIÉRA" class="h-8 w-auto sm:h-10" draggable="false">
+          <span class="font-extrabold tracking-wide text-lg text-[var(--brand)]">ATIERA Staff</span>
+        </a>
+
+        <!-- Search (filters current table) -->
+        <div class="ml-auto hidden md:flex items-center bg-orange-100/60 border border-[var(--ring)] rounded-lg px-3 py-1 w-72">
+          <svg class="w-4 h-4 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke-width="2"/></svg>
+          <input id="globalSearch" placeholder="Search…" class="bg-transparent outline-none text-slate-700 placeholder-slate-500 ml-2 w-full text-sm"/>
+        </div>
+
+        <!-- Live date/time -->
+        <div id="clockWrap" class="hidden md:flex items-center gap-2 mr-1 select-none">
+          <span id="liveDate" class="text-sm text-slate-600 hidden sm:inline"></span>
+          <button id="liveTime" class="text-sm font-mono px-2 py-0.5 rounded border border-[var(--ring)] bg-orange-100/60"
+                  title="Click to toggle 12/24-hour time"></button>
+        </div>
+
+        <button id="darkModeToggle" class="p-2 rounded hover:bg-orange-100" title="Theme">🌓</button>
+
+        <!-- Profile -->
+        <div class="relative">
+          <button id="profileBtn" class="p-2 rounded hover:bg-orange-100 flex items-center gap-2" title="Account">
+            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 border border-[var(--ring)]">👤</span>
+          </button>
+          <div id="profileMenu" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-[var(--ring)] overflow-hidden">
+            <div class="px-4 py-2 text-xs text-slate-500 border-b border-[var(--ring)] md:hidden">
+              <span id="liveDateMobile"></span> • <span id="liveTimeMobile" class="font-mono"></span>
+            </div>
+            <a href="#Profile" class="block px-4 py-2 hover:bg-orange-50">Profile</a>
+            <a href="#Messages" class="block px-4 py-2 hover:bg-orange-50">My Messages</a>
+            <a href="#" class="block px-4 py-2 hover:bg-orange-50">Lock Screen</a>
+            <a href="login.html" class="block px-4 py-2 hover:bg-orange-50">Logout</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTEXT BAR -->
+    <div id="contextBar" class="sticky top-14 z-40 hidden border-b border-[var(--ring)] bg-white/80 backdrop-blur">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span id="contextTitle" class="font-semibold text-slate-800"></span>
+        </div>
+        <nav id="contextTabs" class="flex flex-wrap gap-2"></nav>
+      </div>
+    </div>
+
+    <!-- LAYOUT -->
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 py-6">
+      <div id="overlay" class="overlay"></div>
+
+      <!-- SIDEBAR -->
+      <aside id="sidebar" class="fixed md:static left-0 top-14 md:top-auto w-64 md:w-full h-[calc(100vh-56px)] md:h-auto bg-white border-r border-[var(--ring)] sidebar-transition -translate-x-full md:translate-x-0 z-50 overflow-y-auto">
+        <nav class="p-3 space-y-1">
+          <div class="text-[11px] uppercase tracking-widest text-slate-500 px-2 pt-2 pb-1">Navigation</div>
+          <a class="sidebar-item" href="#Dashboard"><span>🏠</span><span>Dashboard</span></a>
+
+          <div class="text-[11px] uppercase tracking-widest text-slate-500 px-2 pt-4 pb-1">My Work</div>
+          <a class="sidebar-item" href="#My Tasks"><span>🗂️</span><span>My Tasks</span></a>
+          <a class="sidebar-item" href="#Time Sheet"><span>⏱️</span><span>Time Sheet</span></a>
+          <a class="sidebar-item" href="#Expense Claims"><span>🧾</span><span>Expense Claims</span></a>
+          <a class="sidebar-item" href="#Requests"><span>📨</span><span>Requests</span></a>
+          <a class="sidebar-item" href="#Payslips"><span>💰</span><span>Payslips</span></a>
+
+          <div class="text-[11px] uppercase tracking-widest text-slate-500 px-2 pt-4 pb-1">Reports</div>
+          <a class="sidebar-item" href="#Reports"><span>📑</span><span>My Reports</span></a>
+        </nav>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="space-y-6">
+        <!-- DASHBOARD HOME -->
+        <section id="dashboardHome" class="space-y-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="card p-4 relative overflow-hidden">
+              <div class="absolute inset-x-0 top-0 top-chip"></div>
+              <div class="text-xs text-[var(--muted)] uppercase tracking-wide">My Hours (This Week)</div>
+              <div id="kpiHours" class="text-2xl font-extrabold mt-1">0.0 hrs</div>
+              <button class="mt-3 btn btn-brand" data-open="mHours">Details ▸</button>
+            </div>
+            <div class="card p-4 relative overflow-hidden">
+              <div class="absolute inset-x-0 top-0 top-chip"></div>
+              <div class="text-xs text-[var(--muted)] uppercase tracking-wide">Pending Requests</div>
+              <div id="kpiReqs" class="text-2xl font-extrabold mt-1">0</div>
+              <button class="mt-3 btn btn-brand" data-open="mReqs">View ▸</button>
+            </div>
+            <div class="card p-4 relative overflow-hidden">
+              <div class="absolute inset-x-0 top-0 top-chip"></div>
+              <div class="text-xs text-[var(--muted)] uppercase tracking-wide">Reimbursements (MTD)</div>
+              <div id="kpiReimb" class="text-2xl font-extrabold mt-1">$0.00</div>
+              <button class="mt-3 btn btn-brand" data-open="mReimb">Details ▸</button>
+            </div>
+            <div class="card p-4 relative overflow-hidden">
+              <div class="absolute inset-x-0 top-0 top-chip"></div>
+              <div class="text-xs text-[var(--muted)] uppercase tracking-wide">Latest Payslip</div>
+              <div class="text-2xl font-extrabold mt-1">$1,280.00</div>
+              <div class="text-xs text-[var(--muted)]">Aug 2025</div>
+              <button class="mt-3 btn btn-brand" data-open="mPayslip">Open ▸</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div class="card p-0 lg:col-span-1 overflow-hidden">
+              <div class="px-5 pt-4 pb-2 flex items-center justify-between">
+                <div class="font-semibold">Hours Per Day</div>
+                <span class="text-xs text-[var(--muted)]">Last 7 days</span>
+              </div>
+              <div class="px-2 pb-4"><canvas id="hoursChart" height="120"></canvas></div>
+            </div>
+            <div class="card p-0 lg:col-span-1">
+              <div class="px-5 pt-4 pb-2 font-semibold">Claim Types (MTD)</div>
+              <div class="px-5 pb-5"><canvas id="claimsChart" height="180"></canvas></div>
+            </div>
+            <div class="card p-6 lg:col-span-1">
+              <div class="font-semibold mb-2">Quick Actions</div>
+              <div class="flex gap-2 flex-wrap">
+                <button class="btn btn-soft" data-open="mNewTS">+ New Timesheet Entry</button>
+                <button class="btn btn-soft" data-open="mNewExpense">+ Submit Expense</button>
+                <button class="btn btn-soft" data-open="mNewRequest">+ New Request</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MODULE CONTENT HOST -->
+        <section id="contentHost" class="hidden"></section>
+      </main>
+    </div>
+
+    <!-- MODAL ROOT -->
+    <div id="modalRoot" class="modal" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-panel">
+        <div class="card p-0 overflow-hidden">
+          <div class="px-5 py-3 flex items-center justify-between border-b border-[var(--ring)] modal-header" id="modalHeader">
+            <h3 id="modalTitle" class="font-bold">Modal</h3>
+            <div class="flex items-center gap-2">
+              <button id="modalSecondary" class="btn btn-soft hidden"></button>
+              <button class="px-2 py-1 rounded hover:bg-orange-50" data-close aria-label="Close">&times;</button>
+            </div>
+          </div>
+          <div id="modalBody" class="p-5 text-sm"></div>
+          <div class="px-5 py-3 border-t border-[var(--ring)] flex items-center justify-end gap-2">
+            <span id="modalErrors" class="err hidden"></span>
+            <button class="btn btn-soft" data-close>Close</button>
+            <button id="modalPrimary" class="btn btn-brand">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simple info modals -->
+    <template id="tpl-mHours"><p>Your logged hours this week are computed from your entries in <b>Time Sheet</b>.</p></template>
+    <template id="tpl-mReqs"><p>Pending requests are shown in <b>Requests ▸ Pending</b>.</p></template>
+    <template id="tpl-mReimb"><p>Reimbursement total is calculated from approved <b>Expense Claims</b> this month.</p></template>
+    <template id="tpl-mPayslip"><p>Latest payslip (Aug 2025): <b>$1,280.00</b>. Download from Payslips ▸ History.</p></template>
+
+    <!-- Quick form shells (content replaced at runtime) -->
+    <template id="tpl-mNewTS"></template>
+    <template id="tpl-mNewExpense"></template>
+    <template id="tpl-mNewRequest"></template>
+
+    <script>
+    /* ======================= UTILITIES & STORAGE ======================= */
+    const $  = (s, r=document)=>r.querySelector(s);
+    const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
+    const fmtMoney = v => (isNaN(+v)?0:+v).toLocaleString(undefined,{style:'currency',currency:'USD'});
+    const todayISO = () => new Date().toISOString().slice(0,10);
+    const monthKey = (d=new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+
+    const DB = {
+      k:{ TS:'staff_ts', EXP:'staff_exp', REQ:'staff_req', PAY:'staff_payslips' },
+      get(k, fallback=[]){ try{ return JSON.parse(localStorage.getItem(k)) ?? fallback }catch{ return fallback } },
+      set(k, v){ localStorage.setItem(k, JSON.stringify(v)); },
+      uid: ()=>'S'+Math.random().toString(36).slice(2,9).toUpperCase()
+    };
+
+    /* Seed payslips if empty */
+    if(!DB.get(DB.k.PAY).length){
+      DB.set(DB.k.PAY, [
+        { id:DB.uid(), period:'2025-08', gross:1280, net:1180, released:'2025-08-15' },
+        { id:DB.uid(), period:'2025-07', gross:1270, net:1175, released:'2025-07-15' },
+      ]);
+    }
+
+    /* ======================= LOADER & TOAST ======================= */
+    const Loader = (()=>{ const el=$('#globalLoader'); let on=false,t0=0; const MIN=420;
+      function show(){ if(on) return; on=true; t0=performance.now(); el.classList.remove('hidden'); el.classList.add('flex'); }
+      function hide(){ if(!on) return; const d=Math.max(0,MIN-(performance.now()-t0)); setTimeout(()=>{ el.classList.add('hidden'); el.classList.remove('flex'); on=false; }, d); }
+      async function wrap(job){ show(); try{return typeof job==='function'?await job():await job;} finally{hide();} }
+      return {show,hide,wrap};
+    })();
+
+    function toast(msg, type='info'){
+      const host=$('#toast'); host.classList.remove('hidden');
+      const el=document.createElement('div'); el.className='toast-card mb-2';
+      const colors={info:'text-slate-700',success:'text-emerald-700',error:'text-red-700',warn:'text-amber-700'};
+      el.innerHTML=`<div class="${colors[type]||colors.info}">${msg}</div>`;
+      host.appendChild(el); setTimeout(()=>el.remove(),2400);
+      setTimeout(()=>{ if(!host.hasChildNodes()) host.classList.add('hidden'); }, 2600);
+    }
+
+    /* ======================= THEME, CLOCK, MENUS ======================= */
+    const overlay=$('#overlay'), sidebar=$('#sidebar');
+    $('#openSidebar').addEventListener('click', ()=>{ sidebar.classList.remove('-translate-x-full'); overlay.classList.add('active'); });
+    overlay.addEventListener('click', ()=>{ sidebar.classList.add('-translate-x-full'); overlay.classList.remove('active'); });
+    const profileBtn=$('#profileBtn'), profileMenu=$('#profileMenu');
+    profileBtn.addEventListener('click', ()=> profileMenu.classList.toggle('hidden'));
+    document.addEventListener('click',(e)=>{ if(!profileBtn.contains(e.target)&&!profileMenu.contains(e.target)) profileMenu.classList.add('hidden'); });
+    $('#darkModeToggle').addEventListener('click', ()=>{ document.documentElement.classList.toggle('dark'); document.body.classList.toggle('bg-soft'); toast('Theme toggled'); });
+
+    (()=>{ const t=$('#liveTime'), d=$('#liveDate'), tm=$('#liveTimeMobile'), dm=$('#liveDateMobile'); let is24=localStorage.getItem('fmt24')==='1';
+      const fD=d0=>new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'2-digit',weekday:'short'}).format(d0);
+      const fT=d0=>new Intl.DateTimeFormat(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:!is24}).format(d0);
+      function tick(){ const now=new Date(), dt=fD(now), tt=fT(now); d&&(d.textContent=dt); t&&(t.textContent=tt); dm&&(dm.textContent=dt); tm&&(tm.textContent=tt); }
+      t?.addEventListener('click',()=>{ is24=!is24; localStorage.setItem('fmt24',is24?'1':'0'); tick(); });
+      tick(); setInterval(tick,1000); $('#clockWrap')?.classList.remove('hidden'); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
+    })();
+
+    /* ======================= MODAL SYSTEM (Enhanced) ======================= */
+    const Modal = (()=> {
+      const root = $('#modalRoot'), body=$('#modalBody'), title=$('#modalTitle'),
+            primary=$('#modalPrimary'), secondary=$('#modalSecondary'), err=$('#modalErrors'),
+            panel = root.querySelector('.modal-panel'), header=$('#modalHeader');
+      let onPrimary=null, onSecondary=null, prevFocus=null, sizeClass='', destructive=false;
+
+      // Focus trap
+      function trap(e){
+        if(!root.classList.contains('active')) return;
+        const focusables = $$('a,button,input,select,textarea,[tabindex]:not([tabindex="-1"])', root).filter(x=>!x.hasAttribute('disabled'));
+        if(!focusables.length) return;
+        const first = focusables[0], last = focusables[focusables.length-1];
+        if(e.key === 'Tab'){
+          if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+          else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+        } else if(e.key === 'Enter' && (document.activeElement.tagName!=='TEXTAREA')){
+          // Enter submits if primary visible
+          if(!primary.hasAttribute('disabled')) primary.click();
+        } else if(e.key === 'Escape'){ close(); }
+      }
+
+      // Drag to move (desktop)
+      let drag=false, startX=0, startY=0, origL=0, origT=0;
+      function beginDrag(e){
+        const rect = panel.getBoundingClientRect();
+        drag=true; startX = e.clientX; startY = e.clientY; origL = rect.left; origT = rect.top;
+        panel.style.position='fixed'; panel.style.margin='0';
+        document.addEventListener('mousemove', moveDrag); document.addEventListener('mouseup', endDrag);
+      }
+      function moveDrag(e){
+        if(!drag) return;
+        const dx=e.clientX-startX, dy=e.clientY-startY;
+        panel.style.left = Math.max(8, Math.min(window.innerWidth-8-panel.offsetWidth, origL+dx))+'px';
+        panel.style.top  = Math.max(8, Math.min(window.innerHeight-8-panel.offsetHeight, origT+dy))+'px';
+      }
+      function endDrag(){ drag=false; document.removeEventListener('mousemove', moveDrag); document.removeEventListener('mouseup', endDrag); }
+
+      header.addEventListener('mousedown', e=>{ if(window.innerWidth>768) beginDrag(e); });
+
+      // Open/Close
+      function open({title:t='Modal', bodyHTML='', primaryText='Save', secondaryText='', onOk=null, onAlt=null, size='md', isDestructive=false, autoFocus=null}={}){
+        title&&(setTitle(t));
+        body.innerHTML = bodyHTML||'';
+        onPrimary = onOk; onSecondary = onAlt; destructive = !!isDestructive;
+        primary.textContent = primaryText;
+        primary.classList.toggle('btn-danger', destructive);
+        // Secondary
+        if(secondaryText){ secondary.textContent=secondaryText; secondary.classList.remove('hidden'); }
+        else{ secondary.classList.add('hidden'); }
+        // Size
+        root.classList.remove('modal-sm','modal-lg'); sizeClass = size==='sm'?'modal-sm':(size==='lg'?'modal-lg':''); if(sizeClass) root.classList.add(sizeClass);
+        // Position center reset
+        panel.style.left = ''; panel.style.top=''; panel.style.position='relative'; panel.style.margin='auto';
+        // Errors
+        err.classList.add('hidden'); err.textContent='';
+        prevFocus = document.activeElement;
+        root.classList.add('active');
+
+        // Autofocus
+        setTimeout(()=>{
+          if(autoFocus && $(autoFocus, body)) $(autoFocus, body).focus();
+          else {
+            const first = $('input,select,textarea,button', body) || primary;
+            first?.focus();
+          }
+        },10);
+      }
+      function setTitle(t){ title.textContent=t; }
+      async function clickPrimary(){
+        if(typeof onPrimary==='function'){
+          try{
+            setError('');
+            primary.setAttribute('disabled','');
+            await Loader.wrap(onPrimary());
+            close();
+          }catch(e){ setError(e?.message||String(e)||'Please check your inputs.'); }
+          finally{ primary.removeAttribute('disabled'); }
+        } else close();
+      }
+      async function clickSecondary(){
+        if(typeof onSecondary==='function'){ await onSecondary(); close(); } else close();
+      }
+      function setError(m){ if(!m){ err.classList.add('hidden'); err.textContent=''; } else { err.classList.remove('hidden'); err.textContent=m; } }
+      function close(){
+        root.classList.remove('active');
+        onPrimary=null; onSecondary=null; setError('');
+        sizeClass && root.classList.remove(sizeClass);
+        destructive=false;
+        prevFocus?.focus();
+      }
+      root.addEventListener('click',(e)=>{ if(e.target===root || e.target.hasAttribute('data-close')) close(); });
+      primary.addEventListener('click', clickPrimary);
+      secondary.addEventListener('click', clickSecondary);
+      document.addEventListener('keydown', trap);
+
+      // Public helpers
+      function confirm(opts){
+        return new Promise((resolve)=> open({
+          ...opts,
+          primaryText: opts?.primaryText||'Confirm',
+          secondaryText: opts?.secondaryText||'Cancel',
+          onOk: ()=>resolve(true),
+          onAlt: ()=>resolve(false),
+          size:'sm',
+          isDestructive: !!opts?.isDestructive
+        }));
+      }
+      function promptForm({title, fields=[], initial={}, size='md', okText='Save', validate=null}){
+        const html = `
+          <form id="mf" class="grid gap-3">
+            ${fields.map(f=>{
+              const v = (initial[f.name] ?? '');
+              if(f.type==='select'){
+                return `<label class="text-sm">${f.label}
+                  <select name="${f.name}" class="ipt">${(f.options||[]).map(o=>`<option ${o==v?'selected':''}>${o}</option>`).join('')}</select>
+                </label>`;
+              } else if(f.type==='file'){
+                return `<label class="text-sm">${f.label}
+                  <input name="${f.name}" type="file" accept="${f.accept||'*/*'}" class="ipt"/>
+                  <div id="filePreview" class="text-xs text-slate-600 mt-1"></div>
+                </label>`;
+              } else {
+                return `<label class="text-sm">${f.label}<input name="${f.name}" ${f.type?'type="'+f.type+'"':''} value="${String(v).replace(/"/g,'&quot;')}" class="ipt" ${f.required?'required':''} ${f.step?('step="'+f.step+'"'):''} ${f.min?('min="'+f.min+'"'):''}/></label>`;
+              }
+            }).join('')}
+          </form>`;
+        return new Promise((resolve, reject)=>{
+          open({ title, bodyHTML:html, size, primaryText:okText, onOk: async ()=>{
+            const form = $('#mf');
+            if(validate){ const msg = validate(form); if(msg) throw new Error(msg); }
+            const data = Object.fromEntries(new FormData(form).entries());
+            resolve(data);
+          }});
+          // File preview (if any)
+          const fileIpt = $('#mf input[type="file"]'); const preview = $('#filePreview');
+          fileIpt?.addEventListener('change', ()=>{
+            const f = fileIpt.files?.[0]; if(!f){ preview.textContent=''; return; }
+            if(f.type.startsWith('image/')){ const r=new FileReader(); r.onload=()=> preview.innerHTML=`<img src="${r.result}" alt="" class="max-h-32 rounded border mt-1">`; r.readAsDataURL(f); }
+            else preview.textContent = `${f.name} (${Math.round(f.size/1024)} KB)`;
+          });
+        });
+      }
+      return { open, close, setTitle, setError, confirm, promptForm };
+    })();
+
+    /* ======================= MODULES & ROUTER ======================= */
+    const MODULE_TABS = {
+      'My Tasks': [
+        { id:'tasks-open', label:'Open' },
+        { id:'tasks-done', label:'Completed' },
+      ],
+      'Time Sheet': [
+        { id:'ts-week', label:'This Week' },
+        { id:'ts-month', label:'This Month' },
+        { id:'ts-history', label:'History' },
+      ],
+      'Expense Claims': [
+        { id:'exp-new', label:'New Claim' },
+        { id:'exp-history', label:'History' },
+      ],
+      'Requests': [
+        { id:'req-new', label:'New Request' },
+        { id:'req-pending', label:'Pending' },
+        { id:'req-history', label:'History' },
+      ],
+      'Payslips': [
+        { id:'pay-latest', label:'Latest' },
+        { id:'pay-history', label:'History' },
+      ],
+      'Reports': [
+        { id:'rep-my', label:'My Activity' },
+        { id:'rep-usage', label:'Portal Usage' },
+      ],
+      'Profile': [
+        { id:'prof-info', label:'My Profile' },
+        { id:'prof-security', label:'Security' },
+      ],
+      'Messages': [
+        { id:'msg-inbox', label:'Inbox' },
+        { id:'msg-sent', label:'Sent' },
+      ]
+    };
+
+    const contextBar=$('#contextBar'), contextTitle=$('#contextTitle'), contextTabs=$('#contextTabs');
+    const viewDash=$('#dashboardHome'), viewHost=$('#contentHost');
+    const globalSearch = $('#globalSearch');
+
+    function decodeHash(){
+      const h = (location.hash||'').slice(1);
+      if(!h) return { module:'Dashboard', tab:null };
+      const [modPart, tabPart] = h.split('/');
+      return { module: decodeURIComponent(modPart||'Dashboard'), tab: tabPart ? decodeURIComponent(tabPart) : null };
+    }
+    function markActiveSidebar(){
+      const {module} = decodeHash();
+      $$('.sidebar-item').forEach(a=>a.classList.toggle('active', a.getAttribute('href') === `#${encodeURIComponent(module)}` || (module==='Dashboard' && a.getAttribute('href')==='#Dashboard')));
+    }
+    function renderTabs(module, activeId=null){
+      const tabs = MODULE_TABS[module] || [];
+      contextTitle.textContent = module;
+      contextTabs.innerHTML = '';
+      tabs.forEach(t=>{
+        const a=document.createElement('a');
+        a.href = `#${encodeURIComponent(module)}/${encodeURIComponent(t.id)}`;
+        a.className='tab-pill'+(activeId===t.id?' active':'');
+        a.textContent=t.label; a.dataset.tab=t.id;
+        contextTabs.appendChild(a);
+      });
+      contextBar.classList.toggle('hidden', tabs.length===0);
+    }
+
+    /* ======================= RENDER HELPERS ======================= */
+    function tableShell({module, tabLabel}){
+      return `
+        <div class="card p-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs uppercase tracking-wide text-[var(--muted)]">${module}</div>
+              <h2 class="text-xl font-bold">${tabLabel||'Overview'}</h2>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="btn btn-soft" id="btnAdd">+ Add</button>
+              <button class="btn btn-brand" id="btnExport">Export CSV</button>
+            </div>
+          </div>
+
+          <div class="mt-4 border-t border-[var(--ring)] pt-4">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm" id="dataTable">
+                <thead class="bg-orange-50" id="thead"></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    const setHead = (cols)=> $('#thead').innerHTML = `<tr>${cols.map(c=>`<th class="text-left px-3 py-2">${c}</th>`).join('')}</tr>`;
+    const addRow = (cells)=> {
+      const tr=document.createElement('tr'); tr.className='border-t';
+      tr.innerHTML = cells.map(c=>`<td class="px-3 py-2 align-top">${c}</td>`).join('');
+      $('#tbody').appendChild(tr);
+    };
+
+    function filterRows(){
+      const q = (globalSearch.value||'').toLowerCase().trim();
+      $$('#tbody tr').forEach(tr=>{
+        tr.style.display = tr.textContent.toLowerCase().includes(q)?'':'none';
+      });
+    }
+    globalSearch.addEventListener('input', filterRows);
+
+    /* ======================= FEATURE: TIME SHEET ======================= */
+    async function addOrEditTime(entry=null){
+      const isEdit = !!entry;
+      const fields = [
+        {label:'Date', name:'date', type:'date', required:true},
+        {label:'Hours', name:'hours', type:'number', step:'0.25', min:'0', required:true},
+        {label:'Task / Notes', name:'notes', type:'text', required:true}
+      ];
+      const data = await Modal.promptForm({
+        title: isEdit?'Edit Time Entry':'New Time Entry',
+        fields, initial: entry||{date:todayISO(), hours:'', notes:''},
+        validate:(f)=>{
+          const d=f.date.value, h=parseFloat(f.hours.value);
+          if(!d) return 'Date is required.';
+          if(isNaN(h) || h<=0) return 'Hours must be greater than 0.';
+        }
+      });
+      const list = DB.get(DB.k.TS, []);
+      if(isEdit){
+        Object.assign(entry, { date:data.date, hours:+data.hours, notes:data.notes });
+      } else {
+        list.push({ id:DB.uid(), date:data.date, hours:+data.hours, notes:data.notes });
+      }
+      DB.set(DB.k.TS, isEdit? list : list);
+      toast(isEdit?'Timesheet updated.':'Time entry added.','success');
+      refreshAfterChange();
+    }
+    async function deleteTime(entry){
+      const ok = await Modal.confirm({ title:'Delete Entry', bodyHTML:'This cannot be undone.', isDestructive:true });
+      if(!ok) return;
+      const list = DB.get(DB.k.TS, []).filter(x=>x.id!==entry.id);
+      DB.set(DB.k.TS, list);
+      toast('Entry deleted.','success');
+      refreshAfterChange();
+    }
+
+    function renderTimeSheet(view){
+      const list = DB.get(DB.k.TS, []);
+      const now=new Date();
+      const startWeek = new Date(now); startWeek.setDate(now.getDate() - ((now.getDay()+6)%7)); // Monday start
+      const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      let filtered = list.slice().sort((a,b)=>b.date.localeCompare(a.date));
+      if(view==='ts-week') filtered = filtered.filter(x=> new Date(x.date)>=startWeek);
+      if(view==='ts-month') filtered = filtered.filter(x=> new Date(x.date)>=startMonth);
+
+      setHead(['Date','Notes','Hours','Actions']);
+      filtered.forEach(row=>{
+        addRow([
+          row.date,
+          row.notes.replace(/</g,'&lt;'),
+          `${row.hours.toFixed(2)} hrs`,
+          `<button class="text-[var(--brand)] font-semibold hover:underline" data-act="edit" data-id="${row.id}">Edit</button>
+          <button class="ml-3 text-red-600 hover:underline" data-act="del" data-id="${row.id}">Delete</button>`
+        ]);
+      });
+
+      // actions
+      $('#tbody').addEventListener('click', (e)=>{
+        const btn = e.target.closest('button[data-act]'); if(!btn) return;
+        const id = btn.dataset.id;
+        const entry = DB.get(DB.k.TS, []).find(x=>x.id===id);
+        if(btn.dataset.act==='edit') addOrEditTime(entry);
+        if(btn.dataset.act==='del') deleteTime(entry);
+      }, { once:true });
+
+      // Add button
+      $('#btnAdd').onclick = ()=> addOrEditTime(null);
+      // Export
+      $('#btnExport').onclick = ()=> exportCSV('timesheet', filtered.map(r=>({Date:r.date, Notes:r.notes, Hours:r.hours})));
+    }
+
+    /* ======================= FEATURE: EXPENSE CLAIMS ======================= */
+    async function addOrEditClaim(entry=null){
+      const isEdit = !!entry;
+      const data = await Modal.promptForm({
+        title: isEdit?'Edit Expense':'New Expense Claim',
+        fields:[
+          {label:'Date', name:'date', type:'date', required:true},
+          {label:'Amount', name:'amount', type:'number', step:'0.01', min:'0.01', required:true},
+          {label:'Category', name:'category', type:'select', options:['Meals','Transport','Supplies','Other']},
+          {label:'Description', name:'desc', type:'text', required:true},
+          {label:'Receipt (image/pdf)', name:'file', type:'file', accept:'image/*,application/pdf'}
+        ],
+        initial: entry || { date:todayISO(), amount:'', category:'Meals', desc:'' },
+        validate:(f)=>{
+          if(!f.date.value) return 'Date is required.';
+          if(!(+f.amount.value>0)) return 'Amount must be greater than 0.';
+          if(!f.desc.value.trim()) return 'Description is required.';
+        }
+      });
+      const list = DB.get(DB.k.EXP, []);
+      if(isEdit){
+        Object.assign(entry, { date:data.date, amount:+data.amount, category:data.category, desc:data.desc });
+      } else {
+        list.push({ id:DB.uid(), date:data.date, amount:+data.amount, category:data.category, desc:data.desc, status:'PENDING', month: monthKey(new Date(data.date)) });
+      }
+      DB.set(DB.k.EXP, isEdit? list : list);
+      toast(isEdit?'Expense updated.':'Expense submitted.','success');
+      refreshAfterChange();
+    }
+    async function changeClaimStatus(entry, status){
+      const ok = await Modal.confirm({ title:`Mark as ${status}`, bodyHTML:`Are you sure you want to set this claim to <b>${status}</b>?`, primaryText:'Yes', secondaryText:'No' });
+      if(!ok) return;
+      const list = DB.get(DB.k.EXP, []);
+      const item = list.find(x=>x.id===entry.id); if(item){ item.status=status; DB.set(DB.k.EXP, list); toast('Status updated.','success'); refreshAfterChange(); }
+    }
+    async function deleteClaim(entry){
+      const ok = await Modal.confirm({ title:'Delete Claim', bodyHTML:'This cannot be undone.', isDestructive:true });
+      if(!ok) return;
+      DB.set(DB.k.EXP, DB.get(DB.k.EXP, []).filter(x=>x.id!==entry.id));
+      toast('Claim deleted.','success'); refreshAfterChange();
+    }
+    function renderClaims(view){
+      const list = DB.get(DB.k.EXP, []).sort((a,b)=>b.date.localeCompare(a.date));
+      let filtered = list;
+      if(view==='exp-new') filtered = list.filter(x=>x.status==='PENDING');
+
+      setHead(['Date','Description','Category','Amount','Status','Actions']);
+      filtered.forEach(row=>{
+        const badge = row.status==='APPROVED'?'green':row.status==='REJECTED'?'red':'yellow';
+        addRow([
+          row.date,
+          row.desc.replace(/</g,'&lt;'),
+          row.category,
+          fmtMoney(row.amount),
+          `<span class="badge ${badge}">${row.status}</span>`,
+          `<button class="text-[var(--brand)] font-semibold hover:underline" data-act="edit" data-id="${row.id}">Edit</button>
+          <button class="ml-3 text-slate-600 hover:underline" data-act="approve" data-id="${row.id}">Approve</button>
+          <button class="ml-3 text-slate-600 hover:underline" data-act="reject" data-id="${row.id}">Reject</button>
+          <button class="ml-3 text-red-600 hover:underline" data-act="del" data-id="${row.id}">Delete</button>`
+        ]);
+      });
+
+      $('#tbody').addEventListener('click',(e)=>{
+        const btn=e.target.closest('button[data-act]'); if(!btn) return;
+        const id=btn.dataset.id;
+        const entry = DB.get(DB.k.EXP, []).find(x=>x.id===id);
+        if(btn.dataset.act==='edit') addOrEditClaim(entry);
+        if(btn.dataset.act==='approve') changeClaimStatus(entry,'APPROVED');
+        if(btn.dataset.act==='reject') changeClaimStatus(entry,'REJECTED');
+        if(btn.dataset.act==='del') deleteClaim(entry);
+      }, {once:true});
+
+      $('#btnAdd').onclick = ()=> addOrEditClaim(null);
+      $('#btnExport').onclick = ()=> exportCSV('expense_claims', filtered.map(r=>({Date:r.date, Description:r.desc, Category:r.category, Amount:r.amount, Status:r.status})));
+    }
+
+    /* ======================= FEATURE: REQUESTS ======================= */
+    async function addOrEditRequest(entry=null){
+      const isEdit = !!entry;
+      const data = await Modal.promptForm({
+        title: isEdit?'Edit Request':'New Request',
+        fields:[
+          {label:'Type', name:'type', type:'select', options:['Leave','Cash Advance','Schedule Change','Other']},
+          {label:'Date Needed', name:'date', type:'date'},
+          {label:'Details', name:'details', type:'text', required:true}
+        ],
+        initial: entry || { type:'Leave', date:todayISO(), details:'' },
+        validate:(f)=>{ if(!f.details.value.trim()) return 'Details are required.'; }
+      });
+      const list = DB.get(DB.k.REQ, []);
+      if(isEdit){
+        Object.assign(entry, { type:data.type, needDate:data.date||'', details:data.details });
+      } else {
+        list.push({ id:DB.uid(), type:data.type, needDate:data.date||'', details:data.details, status:'PENDING', created: todayISO() });
+      }
+      DB.set(DB.k.REQ, list);
+      toast(isEdit?'Request updated.':'Request submitted.','success');
+      refreshAfterChange();
+    }
+    async function setRequestStatus(entry, status){
+      const ok = await Modal.confirm({ title:`${status} Request`, bodyHTML:`Confirm to set status to <b>${status}</b>?`, primaryText:'Confirm', secondaryText:'Cancel' });
+      if(!ok) return;
+      const list = DB.get(DB.k.REQ, []);
+      const item = list.find(x=>x.id===entry.id); if(item){ item.status=status; DB.set(DB.k.REQ, list); toast('Status changed.','success'); refreshAfterChange(); }
+    }
+    async function deleteRequest(entry){
+      const ok = await Modal.confirm({ title:'Delete Request', bodyHTML:'This cannot be undone.', isDestructive:true });
+      if(!ok) return;
+      DB.set(DB.k.REQ, DB.get(DB.k.REQ, []).filter(x=>x.id!==entry.id));
+      toast('Request deleted.','success'); refreshAfterChange();
+    }
+    function renderRequests(view){
+      let list = DB.get(DB.k.REQ, []).sort((a,b)=>b.created.localeCompare(a.created));
+      if(view==='req-pending') list = list.filter(x=>x.status==='PENDING');
+      if(view==='req-history') list = list.filter(x=>x.status!=='PENDING');
+
+      setHead(['Created','Type','Details','Need Date','Status','Actions']);
+      list.forEach(row=>{
+        const badge = row.status==='APPROVED'?'green':row.status==='DENIED'?'red':'yellow';
+        addRow([
+          row.created,
+          row.type,
+          row.details.replace(/</g,'&lt;'),
+          row.needDate||'—',
+          `<span class="badge ${badge}">${row.status}</span>`,
+          `<button class="text-[var(--brand)] font-semibold hover:underline" data-act="edit" data-id="${row.id}">Edit</button>
+          <button class="ml-3 text-slate-600 hover:underline" data-act="approve" data-id="${row.id}">Approve</button>
+          <button class="ml-3 text-slate-600 hover:underline" data-act="deny" data-id="${row.id}">Deny</button>
+          <button class="ml-3 text-red-600 hover:underline" data-act="del" data-id="${row.id}">Delete</button>`
+        ]);
+      });
+
+      $('#tbody').addEventListener('click',(e)=>{
+        const btn=e.target.closest('button[data-act]'); if(!btn) return;
+        const id=btn.dataset.id;
+        const entry = DB.get(DB.k.REQ, []).find(x=>x.id===id);
+        if(btn.dataset.act==='edit') addOrEditRequest(entry);
+        if(btn.dataset.act==='approve') setRequestStatus(entry,'APPROVED');
+        if(btn.dataset.act==='deny') setRequestStatus(entry,'DENIED');
+        if(btn.dataset.act==='del') deleteRequest(entry);
+      }, {once:true});
+
+      $('#btnAdd').onclick = ()=> addOrEditRequest(null);
+      $('#btnExport').onclick = ()=> exportCSV('requests', list.map(r=>({Created:r.created, Type:r.type, Details:r.details, NeedDate:r.needDate, Status:r.status})));
+    }
+
+    /* ======================= FEATURE: PAYSLIPS (Read-only) ======================= */
+    function renderPayslips(view){
+      const list = DB.get(DB.k.PAY, []).sort((a,b)=>b.period.localeCompare(a.period));
+      const latest = list[0];
+      if(view==='pay-latest'){
+        Modal.open({ title:'Latest Payslip', size:'lg', bodyHTML:`
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="card p-4">
+              <div class="font-semibold mb-2">Summary</div>
+              <div>Period: <b>${latest?.period||'-'}</b></div>
+              <div>Gross: <b>${fmtMoney(latest?.gross||0)}</b></div>
+              <div>Net: <b>${fmtMoney(latest?.net||0)}</b></div>
+              <div>Released: <b>${latest?.released||'-'}</b></div>
+            </div>
+            <div class="card p-4">
+              <div class="font-semibold mb-2">Actions</div>
+              <button class="btn btn-brand" onclick="window.print()">Print</button>
+            </div>
+          </div>
+        `});
+        return;
+      }
+
+      // History view
+      viewHost.innerHTML = tableShell({module:'Payslips', tabLabel:'History'});
+      setHead(['Period','Gross','Net','Released']);
+      list.forEach(p=>{
+        addRow([p.period, fmtMoney(p.gross), fmtMoney(p.net), p.released]);
+      });
+      $('#btnAdd').remove(); // no add
+      $('#btnExport').onclick = ()=> exportCSV('payslips', list.map(p=>({Period:p.period, Gross:p.gross, Net:p.net, Released:p.released})));
+    }
+
+    /* ======================= REPORTS / TASKS (Placeholders) ======================= */
+    function renderTasks(tab){
+      viewHost.innerHTML = tableShell({module:'My Tasks', tabLabel: tab==='tasks-done'?'Completed':'Open'});
+      setHead(['Date','Task','Status','Actions']);
+      addRow([ todayISO(), 'Sample task', `<span class="badge gray">OPEN</span>`, `<button class="text-slate-600">Mark Done</button>` ]);
+      $('#btnAdd').onclick = ()=> toast('Task creation coming soon','warn');
+      $('#btnExport').onclick = ()=> exportCSV('tasks',[{Date:todayISO(), Task:'Sample task', Status:'OPEN'}]);
+    }
+    function renderReports(){ viewHost.innerHTML = `<div class="card p-6"><div class="font-semibold mb-2">My Activity</div><p class="text-sm text-slate-700">Coming soon.</p></div>`; }
+
+    /* ======================= NAVIGATION ======================= */
+    function showDashboard(){
+      viewHost.classList.add('hidden'); viewDash.classList.remove('hidden');
+      contextBar.classList.add('hidden');
+      updateDashboardKpis();
+    }
+    function showView(module, tabId, tabLabel){
+      viewDash.classList.add('hidden'); viewHost.classList.remove('hidden');
+      viewHost.innerHTML = tableShell({module, tabLabel});
+    }
+    async function navigateFromHash(){
+      const {module, tab} = decodeHash();
+      markActiveSidebar();
+      sidebar.classList.add('-translate-x-full'); overlay.classList.remove('active');
+
+      if(module==='Dashboard' || !module){
+        await Loader.wrap(new Promise(r=>setTimeout(r,120)));
+        showDashboard();
+        return;
+      }
+      const tabs = MODULE_TABS[module] || [];
+      const active = tabs.find(t=>t.id===tab) || tabs[0];
+      await Loader.wrap(new Promise(r=>setTimeout(r,160)));
+      renderTabs(module, active?.id);
+      $$('.tab-pill').forEach(p=>p.classList.toggle('active', p.dataset.tab===active?.id));
+
+      // Route handlers
+      if(module==='Time Sheet') { showView(module, active.id, active.label); renderTimeSheet(active.id); }
+      else if(module==='Expense Claims') { showView(module, active.id, active.label); renderClaims(active.id); }
+      else if(module==='Requests') { showView(module, active.id, active.label); renderRequests(active.id); }
+      else if(module==='Payslips') { renderPayslips(active.id); }
+      else if(module==='My Tasks') { renderTasks(active.id); }
+      else if(module==='Reports') { renderReports(); }
+      else { showView(module, active.id, active.label); }
+      filterRows(); // apply search filter
+    }
+    window.addEventListener('hashchange', navigateFromHash);
+
+    /* ======================= EXPORT CSV ======================= */
+    function exportCSV(name, rows){
+      const cols = Object.keys(rows[0]||{});
+      const esc = v => `"${String(v??'').replace(/"/g,'""')}"`;
+      const csv = [cols.map(esc).join(',')].concat(rows.map(r=>cols.map(c=>esc(r[c])).join(','))).join('\n');
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${name}-${Date.now()}.csv`; a.click();
+    }
+
+    /* ======================= CHARTS (live from data) ======================= */
+    let hoursChart, claimsChart;
+    function initCharts(){
+      const BRAND = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#f97316';
+      const ctx1 = document.getElementById('hoursChart');
+      const ctx2 = document.getElementById('claimsChart');
+
+      const {labels, values} = computeLast7DaysHours();
+      hoursChart = new Chart(ctx1, {
+        type:'line',
+        data:{ labels, datasets:[{ label:'Hours', data:values, borderColor:BRAND, backgroundColor:'rgba(249,115,22,.15)', fill:true, tension:.35, pointRadius:0 }] },
+        options:{ responsive:true, plugins:{legend:{display:false}}, scales:{x:{display:false}, y:{display:false}} }
+      });
+
+      const claims = DB.get(DB.k.EXP, []).filter(x=>x.month===monthKey());
+      const agg = claims.reduce((a,c)=> (a[c.category]=(a[c.category]||0)+c.amount, a), {});
+      claimsChart = new Chart(ctx2, {
+        type:'doughnut',
+        data:{ labels:Object.keys(agg).length?Object.keys(agg):['Meals','Transport','Other'],
+          datasets:[{ data:Object.keys(agg).length?Object.values(agg):[45,35,20], backgroundColor:['#ef4444', BRAND, '#16a34a'], borderWidth:0 }] },
+        options:{ plugins:{legend:{display:false}}, cutout:'65%' }
+      });
+    }
+    function computeLast7DaysHours(){
+      const ts = DB.get(DB.k.TS, []);
+      const days = [...Array(7)].map((_,i)=>{ const d=new Date(); d.setDate(d.getDate()- (6-i)); return d; });
+      const labels = days.map(d=> d.toLocaleDateString(undefined,{weekday:'short'}));
+      const values = days.map(d=>{
+        const iso=d.toISOString().slice(0,10);
+        return ts.filter(x=>x.date===iso).reduce((s,x)=>s+x.hours,0);
+      });
+      return {labels, values};
+    }
+    function updateCharts(){
+      if(hoursChart){
+        const {labels, values} = computeLast7DaysHours();
+        hoursChart.data.labels = labels; hoursChart.data.datasets[0].data = values; hoursChart.update();
+      }
+      if(claimsChart){
+        const claims = DB.get(DB.k.EXP, []).filter(x=>x.month===monthKey());
+        const agg = claims.reduce((a,c)=> (a[c.category]=(a[c.category]||0)+c.amount, a), {});
+        claimsChart.data.labels = Object.keys(agg);
+        claimsChart.data.datasets[0].data = Object.values(agg);
+        claimsChart.update();
+      }
+    }
+
+    /* ======================= DASHBOARD KPIs ======================= */
+    function updateDashboardKpis(){
+      // Hours this ISO week (Mon-Sun)
+      const ts = DB.get(DB.k.TS, []);
+      const now=new Date(); const startWeek=new Date(now); startWeek.setDate(now.getDate()-((now.getDay()+6)%7));
+      const weekHours = ts.filter(x=> new Date(x.date)>=startWeek).reduce((s,x)=>s+x.hours,0);
+      $('#kpiHours').textContent = `${weekHours.toFixed(1)} hrs`;
+
+      // Pending requests
+      const req = DB.get(DB.k.REQ, []).filter(x=>x.status==='PENDING').length;
+      $('#kpiReqs').textContent = String(req);
+
+      // MTD reimbursements (approved)
+      const exp = DB.get(DB.k.EXP, []).filter(x=>x.status==='APPROVED' && x.month===monthKey())
+                    .reduce((s,x)=>s+x.amount,0);
+      $('#kpiReimb').textContent = fmtMoney(exp);
+    }
+
+    function refreshAfterChange(){
+      updateDashboardKpis();
+      updateCharts();
+      // Re-render current view to reflect changes
+      navigateFromHash();
+    }
+
+    /* ======================= SIMPLE INFO MODALS (click handlers) ======================= */
+    document.addEventListener('click',(e)=>{
+      const btn=e.target.closest('[data-open]'); if(!btn) return;
+      const id='tpl-'+btn.getAttribute('data-open'); const tpl=document.getElementById(id);
+      if(tpl && tpl.innerHTML.trim()){
+        Modal.open({ title:btn.textContent.trim(), bodyHTML:tpl.innerHTML });
+      } else {
+        // If shell, open real forms:
+        if(id==='tpl-mNewTS') addOrEditTime(null);
+        if(id==='tpl-mNewExpense') addOrEditClaim(null);
+        if(id==='tpl-mNewRequest') addOrEditRequest(null);
+      }
+    });
+
+    /* ======================= STARTUP ======================= */
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      await Loader.wrap(new Promise(r=>setTimeout(r,200)));
+      if(!location.hash) location.hash = '#Dashboard';
+      initCharts();
+      updateDashboardKpis();
+      navigateFromHash();
+    });
+    </script>
+  </body>
+  </html>

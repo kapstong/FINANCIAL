@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Finance Suite — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+const API = 'http://localhost:5050';
+function authHeaders(){ const t = localStorage.getItem('token'); return t? {Authorization:'Bearer '+t}:{ }; }
+async function api(path, opts={}) {
+  const res = await fetch(API+path, { ...opts, headers:{ 'Content-Type':'application/json', ...authHeaders(), ...(opts.headers||{}) }});
+  const json = await res.json(); if(!res.ok) throw new Error(json.error||'Request failed'); return json;
+}
+</script>
+
+  <style>
+    :root{
+      --brand:#0f1c49;      /* navbar + accents */
+      --brand-600:#0c173c;
+      --brand-100:#e8ecf9;
+      --ink:#000;           /* all non-navbar text is black */
+      --muted:#000;         /* muted also black by request */
+      --ring:0 0 0 3px rgba(15,28,73,.15);
+      --card-bg: rgba(255,255,255,.95);
+      --card-border: rgba(226,232,240,.9);
+    }
+
+    body{ background:#fff; color:var(--ink); }
+    .bg-soft{
+      background:
+        radial-gradient(70% 70% at 0% 0%, var(--brand-100) 0%, transparent 60%),
+        radial-gradient(60% 60% at 100% 0%, #eef2ff 0%, transparent 55%),
+        linear-gradient(#fff,#fff);
+    }
+
+    /* ===== Header / Navbar ===== */
+    .navbar { background: var(--brand); color:#fff; }
+    .navbar * { color:white !important; } /* force white text inside navbar */
+    .nav-input{
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.35);
+      padding: .35rem .6rem; border-radius:.6rem;
+    }
+    .nav-input::placeholder{ color:#f1f5f9; }
+
+    /* ===== Cards / Buttons / Chips ===== */
+    .card{ background:var(--card-bg); border-radius:14px; border:1px solid var(--card-border); box-shadow:0 6px 18px rgba(2,6,23,.04) }
+    .btn{ display:inline-flex; align-items:center; gap:.5rem; padding:.55rem .95rem; border-radius:.65rem; font-weight:600; color:#000 }
+    .btn-brand{ background:var(--brand); color:#fff !important } .btn-brand:hover{ background:var(--brand-600) }
+    .btn-soft{ background:#fff; border:1px solid var(--card-border); } .btn-soft:hover{ background:#f8fafc }
+    .top-chip{ height:3px; background:var(--brand) }
+
+    /* ===== Sidebar / Tabs ===== */
+    .sidebar-transition{ transition:transform .28s ease }
+    .overlay{ display:none } .overlay.active{ display:block; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:40 }
+
+    .sidebar-item{ display:flex; align-items:center; gap:.6rem; width:100%; padding:.5rem .75rem; border-radius:.6rem; color:#000; }
+    .sidebar-item:hover{ background:#f8fafc }
+    .sidebar-item.active{ background:rgba(15,28,73,.06); color:var(--brand); font-weight:700 }
+
+    .tab-pill{ padding:.4rem .8rem; border-radius:9999px; border:1px solid var(--card-border); font-weight:700; font-size:.9rem; color:#000 }
+    .tab-pill.active{ background:var(--brand); color:#fff; border-color:var(--brand) }
+
+    /* ===== Modal / Toast ===== */
+    .modal{ display:none; position:fixed; inset:0; z-index:60; }
+    .modal.active{ display:flex }
+    .modal-backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.42) }
+    .modal-panel{ position:relative; margin:auto; width:min(680px,92vw); }
+    .toast-card{ background:#fff; border:1px solid var(--card-border); border-radius:.75rem; padding:.6rem .9rem; box-shadow:0 10px 30px rgba(0,0,0,.08); color:#000 }
+  </style>
+</head>
+<body class="min-h-screen text-[15px] bg-soft">
+
+  <!-- GLOBAL LOADER -->
+  <div id="globalLoader" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/20">
+    <div class="flex flex-col items-center gap-3">
+      <svg class="animate-spin h-10 w-10" viewBox="0 0 24 24" style="color:var(--brand)">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      <p class="text-sm">Loading…</p>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="fixed top-4 right-4 z-[120] hidden"></div>
+
+  <!-- ===== HEADER ===== -->
+  <header class="sticky top-0 z-50 border-b border-[var(--ring)] navbar backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center gap-3">
+      <button id="openSidebar" class="md:hidden p-2 rounded hover:bg-white/10" aria-label="Open menu">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h10"/></svg>
+      </button>
+
+      <!-- Brand -->
+      <a href="dashboard.html" class="flex items-center gap-3">
+        <img src="logo2.png" alt="ATIÉRA" class="h-8 w-auto sm:h-10" draggable="false">
+        <span class="font-extrabold tracking-wide text-lg">ATIERA</span>
+      </a>
+
+      <!-- Search (global) -->
+      <div class="ml-auto flex items-center gap-2">
+        <input id="searchInput" placeholder="Search modules, cards, rows…" class="nav-input text-sm w-72 outline-none"/>
+      </div>
+
+      <!-- Live date/time -->
+      <div id="clockWrap" class="hidden md:flex items-center gap-2 mr-1 select-none">
+        <span id="liveDate" class="text-sm"></span>
+        <button id="liveTime" class="text-sm font-mono px-2 py-0.5 rounded border border-white/30 bg-white/10"
+                title="Click to toggle 12/24-hour time"></button>
+      </div>
+
+      <!-- Profile -->
+      <div class="relative">
+        <button id="profileBtn" class="p-2 rounded hover:bg-white/10 flex items-center gap-2" title="Account">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/15 border border-white/30">👤</span>
+        </button>
+        <div id="profileMenu" class="hidden absolute right-0 mt-2 w-56 bg-black rounded-lg shadow-xl border border-[var(--card-border)] overflow-hidden text-[var(--ink)]">
+          <div class="px-4 py-2 text-xs text-slate-500 border-b border-[var(--card-border)] md:hidden">
+            <span id="liveDateMobile"></span> • <span id="liveTimeMobile" class="font-mono"></span>
+        </div>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">Settings</a>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">Profile</a>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">My Messages</a>
+<a href="#" class="block px-4 py-2 text-black hover:bg-slate-900">Lock Screen</a>
+<a href="login.html?logout=1" class="block px-4 py-2 text-black hover:bg-slate-900">Logout</a>
+</div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTEXT BAR (SUB-MODULE TABS) -->
+  <div id="contextBar" class="sticky top-14 z-40 hidden border-b border-[var(--ring)] bg-white/90 backdrop-blur">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-12 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span id="contextTitle" class="font-semibold"></span>
+      </div>
+      <nav id="contextTabs" class="flex flex-wrap gap-2"></nav>
+    </div>
+  </div>
+
+  <!-- LAYOUT -->
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 py-6">
+    <div id="overlay" class="overlay"></div>
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside id="sidebar" class="fixed md:static left-0 top-14 md:top-auto w-64 md:w-full h[calc(100vh-56px)] md:h-auto bg-white border-r border-[var(--card-border)] sidebar-transition -translate-x-full md:translate-x-0 z-50 overflow-y-auto">
+      <nav id="sidebarNav" class="p-3 space-y-1">
+        <div class="text-[11px] uppercase tracking-widest text-slate-500 px-2 pt-2 pb-1">Navigation</div>
+
+        <a class="sidebar-item" href="dashboard.html"><span>🏠</span><span>Dashboard</span></a>
+        <a class="sidebar-item" href="General Ledger.html"><span>📘</span><span>General Ledger</span></a>
+        <a class="sidebar-item" href="Accounts Receivable.html"><span>💳</span><span>Accounts Receivable</span></a>
+        <a class="sidebar-item" href="Collections.html"><span>🧾</span><span>Collections</span></a>
+        <a class="sidebar-item" href="Accounts Payable.html"><span>📄</span><span>Accounts Payable</span></a>
+        <a class="sidebar-item" href="Disbursement.html"><span>💸</span><span>Disbursement</span></a>
+        <a class="sidebar-item" href="Budget Management.html"><span>📊</span><span>Budget Management</span></a>
+        <a class="sidebar-item" href="Reports.html"><span>📑</span><span>Reports</span></a>
+      </nav>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <main class="space-y-6">
+      <!-- DASHBOARD HOME -->
+      <section id="dashboardHome" class="space-y-6">
+        <div id="kpiGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="card p-4 relative overflow-hidden dashboard-card" data-title="cash">
+            <div class="absolute inset-x-0 top-0 top-chip"></div>
+            <div class="text-xs uppercase tracking-wide">Cash</div>
+            <div class="text-2xl font-extrabold mt-1">₱79,989.00</div>
+            <button class="mt-3 btn btn-brand" data-open="mCash">Details ▸</button>
+          </div>
+          <div class="card p-4 relative overflow-hidden dashboard-card" data-title="ar outstanding">
+            <div class="absolute inset-x-0 top-0 top-chip"></div>
+            <div class="text-xs uppercase tracking-wide">AR Outstanding</div>
+            <div class="text-2xl font-extrabold mt-1">₱0.00</div>
+            <button class="mt-3 btn btn-brand" data-open="mAR">Details ▸</button>
+          </div>
+          <div class="card p-4 relative overflow-hidden dashboard-card" data-title="ap outstanding">
+            <div class="absolute inset-x-0 top-0 top-chip"></div>
+            <div class="text-xs uppercase tracking-wide">AP Outstanding</div>
+            <div class="text-2xl font-extrabold mt-1">₱5,556.00</div>
+            <button class="mt-3 btn btn-brand" data-open="mAP">Details ▸</button>
+          </div>
+          <div class="card p-4 relative overflow-hidden dashboard-card" data-title="revenue mtd">
+            <div class="absolute inset-x-0 top-0 top-chip"></div>
+            <div class="text-xs uppercase tracking-wide">Revenue (MTD)</div>
+            <div class="text-2xl font-extrabold mt-1">₱3,500.00</div>
+            <div class="text-xs">2025-08</div>
+            <button class="mt-3 btn btn-brand" data-open="mRev">Details ▸</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <!-- Sales (BAR) -->
+          <div class="card p-0 lg:col-span-1 overflow-hidden">
+            <div class="px-5 pt-4 pb-2 flex items-center justify-between">
+              <div class="font-semibold">Sales Per Day</div>
+              <span class="text-xs">Last 7 days</span>
+            </div>
+            <div class="px-2 pb-4"><canvas id="salesMini" height="120"></canvas></div>
+          </div>
+          <!-- Total Revenue (PIE) -->
+          <div class="card p-0 lg:col-span-1">
+            <div class="px-5 pt-4 pb-2 font-semibold">Total Revenue</div>
+            <div class="px-5 pb-5"><canvas id="totalRevenue" height="180"></canvas></div>
+          </div>
+
+      <!-- MODULE CONTENT HOST -->
+      <section id="contentHost" class="hidden"></section>
+    </main>
+  </div>
+
+  <!-- ===== MODAL ROOT ===== -->
+  <div id="modalRoot" class="modal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel">
+      <div class="card p-0 overflow-hidden">
+        <div class="px-5 py-3 flex items-center justify-between border-b border-[var(--card-border)]">
+          <h3 id="modalTitle" class="font-bold">Modal</h3>
+          <button class="px-2 py-1 rounded hover:bg-slate-50" data-close>&times;</button>
+        </div>
+        <div id="modalBody" class="p-5 text-sm"></div>
+        <div class="px-5 py-3 border-t border-[var(--card-border)] flex items-center justify-end gap-2">
+          <button class="btn btn-soft" data-close>Close</button>
+          <button id="modalPrimary" class="btn btn-brand">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info modals -->
+  <template id="tpl-mCash"><p>All available cash accounts: <b>₱79,989.00</b></p></template>
+  <template id="tpl-mAR"><p>No open invoices at the moment.</p></template>
+  <template id="tpl-mAP"><p>Outstanding open bills: <b>₱5,556.00</b></template>
+  <template id="tpl-mRev"><p>Revenue (MTD) for Aug 2025: <b>₱3,500.00</b></template>
+
+  <!-- Quick forms -->
+  <template id="tpl-mAddJE">
+    <form id="formJE" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <label class="text-sm">Date<input required type="date" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="text-sm">Reference<input required placeholder="Ref #" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="md:col-span-2 text-sm">Description<input required placeholder="Description" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="text-sm">Debit<input required type="number" step="0.01" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="text-sm">Credit<input required type="number" step="0.01" class="w-full mt-1 border rounded px-2 py-1"/></label>
+    </form>
+  </template>
+
+  <template id="tpl-mQuickPay">
+    <form id="formPay" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <label class="text-sm">Vendor<input required placeholder="Vendor name" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="text-sm">Amount<input required type="number" step="0.01" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="text-sm md:col-span-2">Notes<input placeholder="Optional" class="w-full mt-1 border rounded px-2 py-1"/></label>
+    </form>
+  </template>
+
+  <template id="tpl-mQuickInvoice">
+    <form id="formInv" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <label class="text-sm">Customer<input required placeholder="Customer name" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="text-sm">Total<input required type="number" step="0.01" class="w-full mt-1 border rounded px-2 py-1"/></label>
+      <label class="text-sm md:col-span-2">Item<input placeholder="What for?" class="w-full mt-1 border rounded px-2 py-1"/></label>
+    </form>
+  </template>
+
+  <script>
+    /* ========== Helpers ========== */
+    const $  = (s, r=document)=>r.querySelector(s);
+    const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
+
+    /* Loader + toast */
+    const Loader = (()=>{ const el=$('#globalLoader'); let on=false,t0=0; const MIN=450;
+      function show(){ if(on) return; on=true; t0=performance.now(); el.classList.remove('hidden'); el.classList.add('flex'); }
+      function hide(){ if(!on) return; const d=Math.max(0,MIN-(performance.now()-t0)); setTimeout(()=>{ el.classList.add('hidden'); el.classList.remove('flex'); on=false; }, d); }
+      async function wrap(job){ show(); try{return typeof job==='function'?await job():await job;} finally{hide();} }
+      return {show,hide,wrap};
+    })();
+    function toast(msg, type='info'){
+      const host=$('#toast'); host.classList.remove('hidden');
+      const el=document.createElement('div'); el.className='toast-card mb-2';
+      const colors={info:'text-slate-700',success:'text-emerald-700',error:'text-red-700',warn:'text-amber-700'};
+      el.innerHTML=`<div class="${colors[type]||colors.info}">${msg}</div>`;
+      host.appendChild(el); setTimeout(()=>el.remove(),2200);
+      setTimeout(()=>{ if(!host.hasChildNodes()) host.classList.add('hidden'); }, 2400);
+    }
+
+    /* ========== Layout / Menus ========== */
+    const overlay=$('#overlay'), sidebar=$('#sidebar');
+    $('#openSidebar')?.addEventListener('click', ()=>{ sidebar.classList.remove('-translate-x-full'); overlay.classList.add('active'); });
+    overlay?.addEventListener('click', ()=>{ sidebar.classList.add('-translate-x-full'); overlay.classList.remove('active'); });
+    const profileBtn=$('#profileBtn'), profileMenu=$('#profileMenu');
+    profileBtn?.addEventListener('click', ()=> profileMenu.classList.toggle('hidden'));
+    document.addEventListener('click',(e)=>{ if(!profileBtn?.contains(e.target)&&!profileMenu?.contains(e.target)) profileMenu?.classList.add('hidden'); });
+
+    /* ========== Clock ========== */
+    (()=>{ const t=$('#liveTime'), d=$('#liveDate'), tm=$('#liveTimeMobile'), dm=$('#liveDateMobile'); let is24=localStorage.getItem('fmt24')==='1';
+      const fD=d0=>new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'2-digit',weekday:'short'}).format(d0);
+      const fT=d0=>new Intl.DateTimeFormat(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:!is24}).format(d0);
+      function tick(){ const now=new Date(), dt=fD(now), tt=fT(now); if(d) d.textContent=dt; if(t) t.textContent=tt; if(dm) dm.textContent=dt; if(tm) tm.textContent=tt; }
+      t?.addEventListener('click',()=>{ is24=!is24; localStorage.setItem('fmt24',is24?'1':'0'); tick(); });
+      tick(); setInterval(tick,1000); $('#clockWrap')?.classList.remove('hidden'); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) tick(); });
+    })();
+
+    /* ========== Module Tabs Config ========== */
+    const MODULE_TABS = {
+      'General Ledger': [
+        { id:'gl-je', label:'Journal Entries' },
+        { id:'gl-tb', label:'Trial Balance' },
+        { id:'gl-ledger', label:'Ledger Report' },
+      ],
+      'Accounts Receivable': [
+        { id:'ar-open', label:'Open Invoices' },
+        { id:'ar-pay',  label:'Payment History' },
+      ],
+      'Collections': [
+        { id:'col-sum', label:'Collection Summary' },
+        { id:'col-past',label:'Past Due List' },
+      ],
+      'Accounts Payable': [
+        { id:'ap-open', label:'Open Bills' },
+        { id:'ap-sched',label:'Payment Schedule' },
+      ],
+      'Disbursement': [
+        { id:'disb-rec', label:'Disbursement Records' },
+        { id:'disb-fund',label:'Fund Transfers' },
+      ],
+      'Budget Management': [
+        { id:'bud-cur', label:'Current Budget' },
+        { id:'bud-var', label:'Budget Variance' },
+      ],
+      'Reports': [
+        { id:'rpt-fs', label:'Financial Statement' },
+        { id:'rpt-custom', label:'Custom Reports' },
+      ],
+    };
+
+    const contextBar=$('#contextBar'), contextTitle=$('#contextTitle'), contextTabs=$('#contextTabs');
+    const viewDash=$('#dashboardHome'), viewHost=$('#contentHost');
+
+    /* ========== Router Helpers ========== */
+    function decodeHash(){
+      const h = (location.hash||'').slice(1);  // "Module" or "Module/tabId"
+      if(!h) return { module:'Dashboard', tab:null };
+      const [modPart, tabPart] = h.split('/');
+      return { module: decodeURIComponent(modPart||'Dashboard'), tab: tabPart ? decodeURIComponent(tabPart) : null };
+    }
+    function markActiveSidebar(){
+      const {module} = decodeHash();
+      $$('.sidebar-item').forEach(a=>{
+        const href = a.getAttribute('href');
+        const isDash = module==='Dashboard' && href==='#Dashboard';
+        const match = href === `#${encodeURIComponent(module)}` || isDash;
+        a.classList.toggle('active', match);
+      });
+    }
+    function renderTabs(module, activeId=null){
+      const tabs = MODULE_TABS[module] || [];
+      contextTitle.textContent = module;
+      contextTabs.innerHTML = '';
+      tabs.forEach(t=>{
+        const a=document.createElement('a');
+        a.href = `#${encodeURIComponent(module)}/${encodeURIComponent(t.id)}`;
+        a.className='tab-pill'+(activeId===t.id?' active':'');
+        a.textContent=t.label; a.dataset.tab=t.id;
+        contextTabs.appendChild(a);
+      });
+      contextBar.classList.toggle('hidden', tabs.length===0);
+    }
+    function showDashboard(){
+      viewHost.classList.add('hidden');
+      viewDash.classList.remove('hidden');
+      contextBar.classList.add('hidden');
+    }
+    function showView(module, tabId, tabLabel){
+      viewDash.classList.add('hidden'); viewHost.classList.remove('hidden');
+      viewHost.innerHTML = `
+        <div class="card p-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs uppercase tracking-wide">${module}</div>
+              <h2 class="text-xl font-bold">${tabLabel||'Overview'}</h2>
+            </div>
+            <div class="flex gap-2">
+              <button class="btn btn-soft" data-open="mAddJE">+ Add</button>
+              <button class="btn btn-brand" id="btnExport">Export</button>
+            </div>
+          </div>
+
+          <div class="mt-4 border-t border-[var(--card-border)] pt-4">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm" id="moduleTable">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="text-left px-3 py-2">Date</th>
+                    <th class="text-left px-3 py-2">Reference</th>
+                    <th class="text-left px-3 py-2">Description</th>
+                    <th class="text-left px-3 py-2">Amount</th>
+                    <th class="text-left px-3 py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-t">
+                    <td class="px-3 py-2">2025-08-01</td>
+                    <td class="px-3 py-2">#0001</td>
+                    <td class="px-3 py-2">Sample for <b>${tabLabel||''}</b></td>
+                    <td class="px-3 py-2">$1,000.00</td>
+                    <td class="px-3 py-2">
+                      <button class="text-[var(--brand)] font-semibold hover:underline" data-open="mViewRow">View</button>
+                      <button class="ml-3 text-slate-600 hover:underline" data-open="mEditRow">Edit</button>
+                      <button class="ml-3 text-red-600 hover:underline" data-open="mDelRow">Delete</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div class="card p-4">
+                <div class="font-semibold mb-2">Insight</div>
+                <p class="text-sm">Replace with KPIs/charts for <b>${tabLabel||module}</b>.</p>
+              </div>
+              <div class="card p-4">
+                <div class="font-semibold mb-2">Notes</div>
+                <p class="text-sm">This is a placeholder area. The loader wraps all actions.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      $('#btnExport')?.addEventListener('click', async ()=>{ await Loader.wrap(new Promise(r=>setTimeout(r,300))); toast('Exported CSV','success'); });
+
+      // demo row modals (create fresh each time)
+      ['tpl-mViewRow','tpl-mEditRow','tpl-mDelRow'].forEach(id=>{ const old=document.getElementById(id); if(old) old.remove(); });
+      const t1=document.createElement('template'); t1.id='tpl-mViewRow'; t1.innerHTML=`<p>Viewing <b>${tabLabel}</b> row #0001.</p>`; document.body.appendChild(t1);
+      const t2=document.createElement('template'); t2.id='tpl-mEditRow'; t2.innerHTML=`<form class="grid gap-3"><label class="text-sm">Description<input value="${tabLabel} item" class="w-full mt-1 border rounded px-2 py-1"/></label><label class="text-sm">Amount<input type="number" step="0.01" value="1000" class="w-full mt-1 border rounded px-2 py-1"/></label></form>`; document.body.appendChild(t2);
+      const t3=document.createElement('template'); t3.id='tpl-mDelRow'; t3.innerHTML=`<p>Delete this record? This action cannot be undone.</p>`; document.body.appendChild(t3);
+    }
+
+    /* Router: drive UI from hash */
+    async function navigateFromHash(){
+      const {module, tab} = decodeHash();
+      // sidebar selection
+      markActiveSidebar();
+      // close mobile
+      sidebar.classList.add('-translate-x-full'); overlay.classList.remove('active');
+
+      if(module==='Dashboard'){
+        await Loader.wrap(new Promise(r=>setTimeout(r,150)));
+        showDashboard();
+        return;
+      }
+      const tabs = MODULE_TABS[module] || [];
+      const active = tabs.find(t=>t.id===tab) || tabs[0];
+      await Loader.wrap(new Promise(r=>setTimeout(r,200)));
+      renderTabs(module, active?.id);
+      $$('.tab-pill').forEach(p=>p.classList.toggle('active', p.dataset.tab===active?.id));
+      showView(module, active?.id, active?.label || 'Overview');
+    }
+    window.addEventListener('hashchange', navigateFromHash);
+
+    /* ========== Charts ========== */
+    function hexToRGBA(hex, alpha=1){
+      const h = hex.replace('#',''); 
+      const b = h.length===3
+        ? h.split('').map(x=>parseInt(x+x,16))
+        : [h.slice(0,2),h.slice(2,4),h.slice(4,6)].map(x=>parseInt(x,16));
+      return `rgba(${b[0]},${b[1]},${b[2]},${alpha})`;
+    }
+    function initCharts(){
+      const BRAND = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#0f1c49';
+      new Chart(document.getElementById('salesMini'), {
+        type:'bar',
+        data:{ labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+          datasets:[{ label:'Sales', data:[12,14,11,16,18,15,17],
+            backgroundColor: hexToRGBA(BRAND,.25), borderColor:BRAND, borderWidth:2 }] },
+        options:{
+          responsive:true,
+          plugins:{legend:{display:false}, tooltip:{mode:'index', intersect:false}},
+          scales:{ x:{grid:{display:false}}, y:{grid:{color:'rgba(0,0,0,.06)'}, ticks:{display:false}} }
+        }
+      });
+      new Chart(document.getElementById('totalRevenue'), {
+        type:'pie',
+        data:{ labels:['Youtube','Facebook','Twitter'],
+          datasets:[{ data:[35,45,20],
+            backgroundColor:[BRAND,'#4f46e5','#16a34a'], borderWidth:0 }] },
+        options:{ plugins:{legend:{position:'bottom'}} }
+      });
+    }
+
+    /* ========== Modal API ========== */
+    const modalRoot=$('#modalRoot'), mBody=$('#modalBody'), mTitle=$('#modalTitle'), mPrimary=$('#modalPrimary'); let modalOkHandler=null;
+    function openModal({title, bodyHTML, primaryText='Save', onPrimary=null}){ mTitle.textContent=title||'Modal'; mBody.innerHTML=bodyHTML||''; mPrimary.textContent=primaryText; modalOkHandler=onPrimary; modalRoot.classList.add('active'); }
+    function closeModal(){ modalRoot.classList.remove('active'); modalOkHandler=null; }
+    modalRoot.addEventListener('click',(e)=>{ if(e.target===modalRoot || e.target.hasAttribute('data-close')) closeModal(); });
+    mPrimary.addEventListener('click', async ()=>{ if(typeof modalOkHandler==='function'){ await Loader.wrap(modalOkHandler); } closeModal(); toast('Saved','success'); });
+    document.addEventListener('click',(e)=>{ const btn=e.target.closest('[data-open]'); if(!btn) return; const id='tpl-'+btn.getAttribute('data-open'); const tpl=document.getElementById(id); if(tpl) openModal({title:btn.textContent.trim(), bodyHTML:tpl.innerHTML}); });
+
+    /* ========== Global Search: sidebar + cards + table rows ========== */
+    const searchInput = document.getElementById("searchInput");
+    function filterSidebar(q){
+      q=q.toLowerCase();
+      $$('#sidebarNav .sidebar-item').forEach(item=>{
+        const txt = item.textContent.toLowerCase();
+        item.style.display = txt.includes(q) ? "flex" : "none";
+      });
+    }
+    function filterDashboardCards(q){
+      q=q.toLowerCase();
+      $$('#kpiGrid .dashboard-card').forEach(card=>{
+        const txt = (card.dataset.title||card.textContent).toLowerCase();
+        card.style.display = txt.includes(q) ? "block" : "none";
+      });
+    }
+    function filterModuleTable(q){
+      q=q.toLowerCase();
+      const tbody = $('#moduleTable tbody'); if(!tbody) return;
+      tbody.querySelectorAll('tr').forEach(tr=>{
+        const txt = tr.textContent.toLowerCase();
+        tr.style.display = txt.includes(q) ? "" : "none";
+      });
+    }
+    searchInput?.addEventListener("input", function(){
+      const q = this.value;
+      filterSidebar(q);
+      // filter either dashboard cards or module table depending on view
+      if(!viewHost.classList.contains('hidden')) filterModuleTable(q);
+      else filterDashboardCards(q);
+    });
+
+    /* ========== Boot ========== */
+    window.addEventListener('DOMContentLoaded', async ()=>{
+      await Loader.wrap(new Promise(r=>setTimeout(r,300)));
+      if(!location.hash) location.hash = '#Dashboard';
+      initCharts();
+      navigateFromHash();
+    });
+  </script>
+</body>
+</html>
